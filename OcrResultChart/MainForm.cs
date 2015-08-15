@@ -5,6 +5,7 @@ using System.Drawing;
 using System.Windows.Forms;
 using System.Windows.Forms.DataVisualization.Charting;
 using MySql.Data.MySqlClient;
+using System.Linq;
 
 namespace OcrResultChart
 {
@@ -18,27 +19,30 @@ namespace OcrResultChart
         private void MainForm_Load(object sender, EventArgs e)
         {
             var tbBatch = GetTable("SELECT DISTINCT(BatchID) FROM billdetailbasicinfo");
-            this.cbBatch.DataSource = tbBatch;
-            this.cbBatch.ValueMember = "BatchID";
-            this.cbBatch.DisplayMember = "BatchID";
+            cbBatch.DataSource = tbBatch;
+            cbBatch.ValueMember = "BatchID";
+            cbBatch.DisplayMember = "BatchID";
+            comboBox1.SelectedIndex = 1;
         }
 
         private void btnShow_Click(object sender, EventArgs e)
         {
+            int rate = int.Parse(comboBox1.Text.ToString());
             var list = GetList(cbBatch.Text);
+            var ratioList = new List<int>();
             double result = 0;
-            int cnt = 0;
             for (int i = 0; i < list.Count; i++)
             {
                 if (list[i] != 0 && i != 0)
                 {
-                    result += list[i] / (double)i;
-                    cnt++;
+                    ratioList.Add((int)((list[i] / (double)i) * rate));
                 }
             }
-            result = result / cnt;
+
+            result = ratioList.Average() / rate;
             chart1.Series.Clear();
-            Series series = new Series("Real");
+
+            Series series = new Series("Point");
             series.ChartType = SeriesChartType.Point;
             for (int i = 0; i < list.Count; i++)
             {
@@ -46,34 +50,72 @@ namespace OcrResultChart
             }
             series.IsValueShownAsLabel = true;
             chart1.Series.Add(series);
-            Series line = new Series("Average");
-            line.ChartType = SeriesChartType.Line;
-            line.Color = Color.Red;
-            line.Points.AddXY(0.0, 0.0);
-            line.Points.AddXY(list.Count, list.Count * result);
-            chart1.Series.Add(line);
 
-            Series line_std = new Series("1:1");
-            line_std.ChartType = SeriesChartType.Line;
-            line_std.Color = Color.Green;
-            line_std.Points.AddXY(0, 0);
-            line_std.Points.AddXY(list.Count, list.Count);
-            chart1.Series.Add(line_std);
+            //Series line = new Series("Average");
+            //line.ChartType = SeriesChartType.Line;
+            //line.Color = Color.Red;
+            //line.Points.AddXY(0.0, 0.0);
+            //line.Points.AddXY(list.Count, list.Count * result);
+            //chart1.Series.Add(line);
 
-            this.chart1.ChartAreas[0].AxisX.Minimum = 0;
-            this.chart1.ChartAreas[0].AxisX.Maximum = list.Count;
-            this.chart1.ChartAreas[0].AxisX.Interval = 5;
-            this.chart1.ChartAreas[0].AxisY.Interval = 5;
+            //Series line_std = new Series("1:1");
+            //line_std.ChartType = SeriesChartType.Line;
+            //line_std.Color = Color.Green;
+            //line_std.Points.AddXY(0, 0);
+            //line_std.Points.AddXY(list.Count, list.Count);
+            //chart1.Series.Add(line_std);
+
+            chart2.Series.Clear();
+            Series line_count = new Series("Count");
+            line_count.ChartType = SeriesChartType.Column;
+            line_count.IsValueShownAsLabel = true;
+            var ratioGroup = ratioList.GroupBy(i => i);
+            var cnt = ratioGroup.Max(g => g.Count());
+            var maxValue = ratioGroup.ToList().Find(g => g.Count() == cnt).Key;
+            foreach (var s in ratioGroup)
+            {
+                line_count.Points.AddXY(s.Key, s.Count());
+            }
+            chart2.Series.Add(line_count);
+
+            Series line_modify = new Series("Perfact_line");
+            line_modify.ChartType = SeriesChartType.Line;
+            line_modify.Color = Color.Blue;
+            line_modify.Points.AddXY(0, 0);
+            line_modify.Points.AddXY(list.Count, list.Count * maxValue / rate);
+            chart1.Series.Add(line_modify);
+
+            Series line_up = new Series("Up_line");
+            line_up.ChartType = SeriesChartType.Line;
+            line_up.Color = Color.Orange;
+            line_up.Points.AddXY(0, 5);
+            line_up.Points.AddXY(list.Count, list.Count * maxValue / rate + 5);
+            chart1.Series.Add(line_up);
+
+            Series line_down = new Series("Down_line");
+            line_down.ChartType = SeriesChartType.Line;
+            line_down.Color = Color.Orange;
+            line_down.Points.AddXY(0, -5);
+            line_down.Points.AddXY(list.Count, list.Count * maxValue / rate - 5);
+            chart1.Series.Add(line_down);
+
+            chart1.ChartAreas[0].AxisX.Minimum = 0;
+            chart1.ChartAreas[0].AxisY.Minimum = 0;
+            chart1.ChartAreas[0].AxisX.Maximum = list.Count;
+            chart1.ChartAreas[0].AxisX.Interval = 5;
+            chart1.ChartAreas[0].AxisY.Interval = 5;
+
         }
 
         private void btnNext_Click(object sender, EventArgs e)
         {
             if (cbBatch.SelectedIndex < cbBatch.Items.Count - 1)
             {
-                this.cbBatch.SelectedIndex += 1;
-                this.btnShow_Click(null, null);
+                cbBatch.SelectedIndex += 1;
+                btnShow_Click(null, null);
             }
         }
+
         private List<int> GetList(string batchid)
         {
             List<int> list = new List<int>();
@@ -115,7 +157,7 @@ namespace OcrResultChart
 
         private DataTable GetTable(string sql)
         {
-            using (MySqlConnection connection = new MySqlConnection("server=75.41.0.154;user=root;database=lzbankdatabase;port=3306;password=root;"))
+            using (MySqlConnection connection = new MySqlConnection("server=localhost;user=root;database=lzbankdatabase;port=3306;password=root;"))
             {
                 DataSet ds = new DataSet();
                 connection.Open();
